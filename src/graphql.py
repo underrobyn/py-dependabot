@@ -39,7 +39,7 @@ def github_graphql_query(url, token, query):
 	if r.status_code == 200:
 		return loads(r.text)
 
-    # Sleep to avoid API limits being reached
+	# Sleep to avoid API limits being reached
 	sleep(3)
-    
+
 	return github_graphql_query(url, token, query)
