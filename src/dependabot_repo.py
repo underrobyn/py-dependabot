@@ -1,77 +1,87 @@
+import logging
 from github import Github
 from dotenv import load_dotenv
-
 from os import getenv
-from graphql import github_graphql_query, GRAPHQL_BASE_DEPENDABOT_QUERY, GRAPHQL_API_ENDPOINT
+from graphql import GRAPHQL_BASE_DEPENDABOT_QUERY, GitHubGraphQLClient
 
 
 class DependabotRepo(object):
 
-	def __init__(self, org, repo):
+	def __init__(self, org, repo, client: GitHubGraphQLClient):
 		super().__init__()
 		self._org = org
 		self._repo = repo
+		self._client = client
 
 		self.full_name = self._repo.full_name
 		self.name = self._repo.name
+		self.description = self._repo.description
 
 		self._nodes = []
 		self.security_events = []
-		self.security_event_count = 0
-		self.security_event_critical = 0
-		self.security_event_high = 0
-		self.security_event_moderate = 0
-		self.security_event_low = 0
+		self.closed_events = []
+		self.security_event_count = {
+			'TOTAL': 0,
+			'CRITICAL': 0,
+			'HIGH': 0,
+			'MODERATE': 0,
+			'LOW': 0
+		}
 
 		self.issues = []
 
-	def __get_graphql_query(self):
-		return GRAPHQL_BASE_DEPENDABOT_QUERY.replace('{{owner}}', self._org).replace('{{repo}}', self._repo.name)
+	def __get_graphql_query(self, after: str) -> str:
+		return GRAPHQL_BASE_DEPENDABOT_QUERY\
+			.replace('{{owner}}', self._org)\
+			.replace('{{repo}}', self._repo.name)\
+			.replace('{{after}}', after)
 
-	def __get_security_events(self):
-		return github_graphql_query(
-			GRAPHQL_API_ENDPOINT,
-			getenv('GITHUB_TOKEN'),
-			self.__get_graphql_query()
-		)
+	def __get_security_events(self, after: str) -> dict:
+		return self._client.query(self.__get_graphql_query(after))
 
-	def get_security_events(self):
-		data = self.__get_security_events()
-
-		if 'data' not in data:
-			raise RuntimeError('Request failed')
+	def __get_security_nodes(self, nodes: list, after: str) -> list:
+		data = self.__get_security_events(after)
 
 		if 'repository' in data['data']:
-			self._nodes = data['data']['repository']['vulnerabilityAlerts']['nodes']
+			vuln_alerts = data['data']['repository']['vulnerabilityAlerts']
+			nodes = nodes + vuln_alerts['nodes']
+
+			if vuln_alerts['pageInfo']['hasNextPage']:
+				logging.info(f"Found another page with cursorID: {vuln_alerts['pageInfo']['endCursor']}")
+				return self.__get_security_nodes(nodes, f", after: \"{vuln_alerts['pageInfo']['endCursor']}\"")
+
+		return nodes
+
+	def get_security_events(self):
+		self._nodes = self.__get_security_nodes([], '')
 
 		if len(self._nodes) > 0:
 			self.__parse_security_events()
 
 	def __parse_security_events(self):
 		for node in self._nodes:
-			self.security_event_count += 1
-
-			if node['securityVulnerability']['severity'] == 'CRITICAL':
-				self.security_event_critical += 1
-			elif node['securityVulnerability']['severity'] == 'HIGH':
-				self.security_event_high += 1
-			elif node['securityVulnerability']['severity'] == 'MODERATE':
-				self.security_event_moderate += 1
-			elif node['securityVulnerability']['severity'] == 'LOW':
-				self.security_event_low += 1
-			else:
-				raise RuntimeError('Unknown node[securityVulnerability][severity]')
-
-			self.security_events.append({
+			alert = {
 				'created_at': node['createdAt'],
 				'dismissed_at': node['dismissedAt'],
+				'dismissed_comment': node['dismissComment'],
+				'dismissed_reason': node['dismissReason'],
+				'number': node['number'],
 				'manifest_path': node['vulnerableManifestPath'],
 				'manifest_filename': node['vulnerableManifestFilename'],
 				'name': node['securityVulnerability']['package']['name'],
 				'description': node['securityVulnerability']['advisory']['description'].strip().replace('\n', ''),
 				'severity': node['securityVulnerability']['severity'],
 				'vulnerableRange': node['securityVulnerability']['vulnerableVersionRange']
-			})
+			}
+
+			# Only add to count if is active alert
+			if node['state'] == 'OPEN':
+				self.security_event_count['TOTAL'] += 1
+				self.security_event_count[node['securityVulnerability']['severity']] += 1
+
+				self.security_events.append(alert)
+			else:
+				self.closed_events.append(alert)
 
 
 if __name__ == '__main__':
@@ -83,5 +93,5 @@ if __name__ == '__main__':
 	dr.get_security_events()
 	print(dr.name)
 	print(dr.security_events)
-	print(f'{dr.security_event_count=},\n{dr.security_event_critical=},\n{dr.security_event_high=},\n{dr.security_event_moderate=},\n{dr.security_event_low=}')
-    
+	print(dr.closed_events)
+	print(f'{dr.security_event_count=}')
