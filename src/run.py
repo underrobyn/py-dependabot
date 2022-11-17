@@ -9,11 +9,12 @@ from graphql import GitHubGraphQLClient
 
 
 def main(events: list) -> None:
-	totals_headers = ['REPO_NAME', 'TOTAL', 'HIGH', 'HIGH', 'MODERATE', 'LOW']
+	totals_headers = ['REPO_NAME', 'REPO_DESCRIPTION', 'TOTAL', 'HIGH', 'HIGH', 'MODERATE', 'LOW']
 	totals_data = []
 	for repo in events:
 		tmp = repo.security_event_count
-		tmp['REPO_NAME'] = repo
+		tmp['REPO_NAME'] = repo.name
+		tmp['REPO_DESCRIPTION'] = repo.description
 		totals_data.append(tmp)
 
 	write_output_csv_dict(f'{getenv("GITHUB_ORG_NAME")}_{DATE_STRING}_totals.csv', totals_headers, totals_data)
