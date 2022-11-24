@@ -9,7 +9,7 @@ from graphql import GitHubGraphQLClient
 
 
 def main(events: list) -> None:
-	totals_headers = ['REPO_NAME', 'REPO_DESCRIPTION', 'TOTAL', 'HIGH', 'HIGH', 'MODERATE', 'LOW']
+	totals_headers = ['REPO_NAME', 'REPO_DESCRIPTION', 'TOTAL', 'CRITICAL', 'HIGH', 'MODERATE', 'LOW']
 	totals_data = []
 	for repo in events:
 		tmp = repo.security_event_count
