@@ -53,6 +53,10 @@ def get_repo_security_data(o: Organization, client: GitHubGraphQLClient) -> list
 	for r in o.get_repos():
 		i += 1
 
+		if r.archived:
+			logging.info(f'[{i}] Skipping archived repository: {r.name}')
+			continue
+
 		logging.info(f'[{i}] Loading instance for: {r.name}')
 
 		dr = DependabotRepo(getenv('GITHUB_ORG_NAME'), r, client)
