@@ -27,6 +27,7 @@ def main(events: list) -> None:
 	totals_data = []
 	detailed_data = []
 	closed_data = []
+	advisory_data = []
 
 	advisory_details = {}
 	cve_list = {}
