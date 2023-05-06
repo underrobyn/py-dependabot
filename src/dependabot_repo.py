@@ -70,9 +70,28 @@ class DependabotRepo(object):
 				'manifest_filename': node['vulnerableManifestFilename'],
 				'name': node['securityVulnerability']['package']['name'],
 				'description': node['securityVulnerability']['advisory']['description'].strip().replace('\n', ''),
+				'cve': '',
+				'ghsa': '',
+				'cvss_score': '',
+				'cvss_vector': '',
 				'severity': node['securityVulnerability']['severity'],
 				'vulnerableRange': node['securityVulnerability']['vulnerableVersionRange']
 			}
+
+			# Extract security advisory identifiers
+			identifiers = node['securityVulnerability']['advisory']['identifiers']
+			for iden in identifiers:
+				if iden['type'] == 'CVE':
+					alert['cve'] = iden['value']
+				elif iden['type'] == 'GHSA':
+					alert['ghsa'] = iden['value']
+				else:
+					logging.warning(f'Unknown identifier values: {iden}')
+			
+			# Extract CVSS information
+			if 'cvss' in node['securityVulnerability']['advisory']:
+				alert['cvss_score'] = node['securityVulnerability']['advisory']['cvss']['score']
+				alert['cvss_vector'] = node['securityVulnerability']['advisory']['cvss']['vectorString']
 
 			# Only add to count if is active alert
 			if node['state'] == 'OPEN':

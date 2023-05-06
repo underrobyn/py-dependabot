@@ -21,8 +21,8 @@ def main(events: list) -> None:
 	write_output_csv_dict(f'{getenv("GITHUB_ORG_NAME")}_{DATE_STRING}_totals.csv', totals_headers, totals_data)
 
 	detailed_headers = [
-		'repo_name', 'repo_description', 'number', 'created_at', 'dismissed_at', 'manifest_path', 'manifest_filename',
-		'name', 'description', 'severity', 'vulnerableRange', 'alert_url'
+		'repo_name', 'repo_description', 'number', 'created_at', 'dismissed_at', 'manifest_path', 'name', 'description',
+		'cve', 'severity', 'vulnerableRange', 'cvss_score', 'cvss_vector', 'alert_url'
 	]
 	detailed_data = []
 	closed_data = []
