@@ -27,13 +27,6 @@ def main(events: list) -> None:
 	detailed_data = []
 	closed_data = []
 
-	def get_data(alert: dict, repo: DependabotRepo) -> dict:
-		tmp = alert
-		tmp['repo_name'] = repo.name
-		tmp['repo_description'] = repo.description
-		tmp['alert_url'] = f'https://github.com/{repo.full_name}/security/dependabot/{alert["number"]}'
-		return tmp
-
 	for repo in events:
 		for alert in repo.security_events:
 			detailed_data.append(get_data(alert, repo))
@@ -45,24 +38,35 @@ def main(events: list) -> None:
 	write_output_csv_dict(f'{getenv("GITHUB_ORG_NAME")}_{DATE_STRING}_closed.csv', detailed_headers, closed_data)
 
 
+def get_data(alert: dict, repo: DependabotRepo) -> dict:
+	tmp = alert
+	tmp['repo_name'] = repo.name
+	tmp['repo_description'] = repo.description
+	tmp['alert_url'] = f'https://github.com/{repo.full_name}/security/dependabot/{alert["number"]}'
+	return tmp
+
+
 def get_repo_security_data(o: Organization, client: GitHubGraphQLClient) -> list:
 	security_data = []
 	i = 0
 
 	logging.info('Loading organisation repository list')
-	for r in o.get_repos():
+	repo_buffer = o.get_repos()
+	num_repos = repo_buffer.totalCount
+
+	for repo in repo_buffer:
 		i += 1
 
-		if r.archived:
-			logging.info(f'[{i}] Skipping archived repository: {r.name}')
+		if repo.archived:
+			logging.info(f'[{i}/{num_repos}] Skipping archived repository: {repo.name}')
 			continue
+			
+		logging.info(f'[{i}/{num_repos}] Querying security events for: {repo.name}')
 
-		logging.info(f'[{i}] Loading instance for: {r.name}')
-
-		dr = DependabotRepo(getenv('GITHUB_ORG_NAME'), r, client)
+		dr = DependabotRepo(getenv('GITHUB_ORG_NAME'), repo, client)
 		dr.get_security_events()
 
-		logging.info(f'\t{dr.security_event_count=}')
+		logging.debug(f'\t{dr.security_event_count=}')
 
 		# Don't add repo to list if there are no security events
 		if dr.security_event_count['TOTAL'] > 0:
